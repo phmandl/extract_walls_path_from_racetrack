@@ -11,12 +11,13 @@ class find_path:
         self.step_size = step_size
         self.plot_flag = plot_flag
 
-        self.max_steps = 1000
+        self.max_steps = 500
         self.outer_cont = 2
         self.inner_cont = 3
         
         # Read the original image
-        self.img = cv2.imread(self.file_path) 
+        self.img = cv2.imread(self.file_path)
+        self.img = cv2.flip(self.img,0) # flip horizontal for TUM Tool 
 
         # Convert to graycsale
         self.img_gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
@@ -136,7 +137,7 @@ class find_path:
             return middle_point, dis_to_wall, new_point, normal_dir
 
 if __name__ == "__main__":
-    map_to_optimize = find_path(map_name='f1_esp.png', map_reso=0.05, step_size= 1.0)
+    map_to_optimize = find_path(map_name='mymap.png', map_reso=0.05, step_size= 0.45)
     map_to_optimize.calc_path()
     map_to_optimize.save_to_csv(os.path.join('output','foo.csv'))
 
