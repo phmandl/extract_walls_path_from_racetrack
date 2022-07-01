@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import os
+from scipy.interpolate import interp1d
 
 class find_path:
     def __init__(self,map_name,map_reso,step_size,plot_flag = True) -> None:
@@ -23,7 +24,7 @@ class find_path:
         self.img_gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
 
         # Blur the image for better edge detection
-        self.img_blur = cv2.GaussianBlur(self.img_gray, (3,3), 0)
+        self.img_blur = cv2.GaussianBlur(self.img_gray, (5,5), 0)
 
         # apply binary thresholding
         self.ret, self.thresh = cv2.threshold(self.img_blur, 127, 255, cv2.THRESH_BINARY) 
@@ -36,6 +37,22 @@ class find_path:
         self.cont_out = []
         self.midPoint = []
         self.disToWall = []
+
+    def interp_cont(self,idx):
+        x = np.squeeze(self.contours[idx])[:,0]
+        y = np.squeeze(self.contours[idx])[:,1]
+        points = np.array([x,y]).T
+
+        # Linear length along the line:
+        distance = np.cumsum(np.sqrt(np.sum(np.diff(points, axis=0)**2, axis=1)))
+        distance = np.insert(distance, 0, 0)/distance[-1]
+
+        # Interpolation for different methods:
+        interpolations_methods = ['slinear', 'quadratic', 'cubic']
+        alpha = np.linspace(0, 1, 100)
+
+        interpolator =  interp1d(distance, points, kind=interpolations_methods[2], axis=0)
+        return interpolator(alpha)
 
     def plot_map_contours(self):
         ax = plt.subplot(1,1,1)
@@ -52,8 +69,11 @@ class find_path:
         plt.show()
 
     def calc_path(self):
-        self.cont_out = np.squeeze(self.contours[self.outer_cont])*self.reso
-        self.cont_in = np.squeeze(self.contours[self.inner_cont])*self.reso
+        self.cont_out = self.interp_cont(self.outer_cont)*self.reso
+        self.cont_in = self.interp_cont(self.inner_cont)*self.reso
+
+        # self.cont_out = np.squeeze(self.contours[self.outer_cont])*self.reso
+        # self.cont_in = np.squeeze(self.contours[self.inner_cont])*self.reso
 
         # Start point - start at first point of outher contour
         idx_out = 0
@@ -137,7 +157,38 @@ class find_path:
             return middle_point, dis_to_wall, new_point, normal_dir
 
 if __name__ == "__main__":
-    map_to_optimize = find_path(map_name='mymap.png', map_reso=0.05, step_size= 0.45)
+    map_to_optimize = find_path(map_name='mymap.png', map_reso=0.05, step_size= 0.5)
+    # map_to_optimize.plot_map_contours()
     map_to_optimize.calc_path()
-    map_to_optimize.save_to_csv(os.path.join('output','foo.csv'))
+    
+    line = map_to_optimize.midPoint
+
+    x = line[:,0]
+    y = line[:,1]
+    points = np.array([x,y]).T
+
+    # Linear length along the line:
+    distance = np.cumsum(np.sqrt(np.sum(np.diff(points, axis=0)**2, axis=1)))
+    distance = np.insert(distance, 0, 0)/distance[-1]
+
+    # Interpolation for different methods:
+    interpolations_methods = ['slinear', 'quadratic', 'cubic']
+    alpha = np.linspace(0, 1, 500)
+
+    interpolator = interp1d(distance, points, kind='cubic', axis=0)
+
+    line_intp = interpolator(alpha)
+
+    ax = plt.subplot(1,1,1)
+    ax.imshow(map_to_optimize.img,cmap='Greys')
+    ax.plot(x,y)
+    ax.plot(line_intp[:,0], line_intp[:,1])
+    ax.legend()
+    plt.title('Map + Contours')
+    plt.xlabel('x, in px')
+    plt.ylabel('y, in px')
+    plt.show()
+
+
+    # map_to_optimize.save_to_csv(os.path.join('output','foo.csv'))
 
